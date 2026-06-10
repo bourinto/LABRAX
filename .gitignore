@@ -30,6 +30,9 @@ dist/
 *.dylib
 
 # Tool caches
+.agents/
+AGENTS.md
+.gitignore
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
