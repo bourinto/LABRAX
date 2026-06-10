@@ -97,17 +97,13 @@ class DeadReckoning(object):
     orientation and depth measurements.
 
     The estimator maintains a 3D position estimate ``(x, y, z)`` in the world
-    frame. On each update, the most recently computed world-frame velocity of the DVL is
-    integrated over the elapsed time since the previous update with trapezoidal integration.
+    frame. Each new DVL sample is integrated once using its local reception
+    timestamp and trapezoidal integration.
     
     Then computed DVL position is shifted in space with transform matrix and attitude that gives true robot positon.    
     
-    A new velocity
-    estimate is then computed from the latest IMU and DVL measurements and
-    stored for use during the next integration step
-
-    The implementation follows a zero-order hold approach: position is updated
-    using the velocity estimate from the previous cycle. 
+    A new velocity estimate is computed from the latest IMU and DVL
+    measurements and stored for use during the next DVL sample.
 
     Args:
         vz_ignored (float, optional, True): value provided to _world_velocity_from_dvl() to ignore the DVL vz component and treat it as zero.
@@ -122,8 +118,7 @@ class DeadReckoning(object):
           integration state.
         - ``update()`` should be called periodically with the latest IMU and
           DVL measurements.
-        - Time integration is based on ``time.time()`` and uses wall-clock
-          elapsed time between successive updates.
+        - Time integration uses the DVL ``received_at`` timestamps.
     """
     def __init__(self, vz_ignored=True):
         self.vz_ignored = bool(vz_ignored)
@@ -136,22 +131,24 @@ class DeadReckoning(object):
         self._dvl_x = 0.0
         self._dvl_y = 0.0
         self._dvl_z = 0.0
-        self._last_t = None
+        self._last_sample_t = None
         self._last_velocity = None
 
     def update(self, imu, dvl):
-        now_t = time.time()
-        velocity = _world_velocity_from_dvl(imu, dvl, self.vz_ignored)
-
         depth = _finite_float(getattr(imu, 'depth', None))
         if depth is not None:
             self._dvl_z = depth
 
-        if self._last_t is not None and self._last_velocity is not None and velocity is not None:
-            dt = now_t - self._last_t
-            if dt > 0.0:
-                self._dvl_x += 0.5 * (self._last_velocity[0] + velocity[0]) * dt
-                self._dvl_y += 0.5 * (self._last_velocity[1] + velocity[1]) * dt
+        sample_t = getattr(dvl, 'received_at', None)
+        if sample_t is not None and sample_t != self._last_sample_t:
+            velocity = _world_velocity_from_dvl(imu, dvl, self.vz_ignored)
+            if self._last_sample_t is not None and self._last_velocity is not None and velocity is not None:
+                dt = sample_t - self._last_sample_t
+                if dt > 0.0:
+                    self._dvl_x += 0.5 * (self._last_velocity[0] + velocity[0]) * dt
+                    self._dvl_y += 0.5 * (self._last_velocity[1] + velocity[1]) * dt
+            self._last_sample_t = sample_t
+            self._last_velocity = velocity
 
         offset = _robot_offset_from_dvl(imu)
         if offset is None:
@@ -163,8 +160,6 @@ class DeadReckoning(object):
             self.y = self._dvl_y + offset[1]
             self.z = self._dvl_z + offset[2]
 
-        self._last_t = now_t
-        self._last_velocity = velocity
         return (self.x, self.y, self.z)
 
 

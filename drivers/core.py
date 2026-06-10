@@ -79,6 +79,8 @@ class TCPClient(object):
 
         try:
             return sock.recv(size)
+        except socket.timeout:
+            raise
         except Exception:
             self._drop_socket()
             raise

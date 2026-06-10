@@ -4,7 +4,7 @@ import time
 
 from .core import Endpoint, TCPClient
 from .models import BatteryData, DVLData, GPSData, IMUData
-from .parsers import parse_compass, parse_gga, parse_son31, parse_son51
+from .parsers import parse_compass, parse_gga, parse_son31
 
 
 class _BaseSensor(object):
@@ -46,6 +46,11 @@ class _BaseSensor(object):
     def _set_connected(self, connected):
         with self._lock:
             self._connected = bool(connected)
+
+    def _disconnect(self):
+        self._set_connected(False)
+        self._client.close()
+        self._buf = ''
 
     def _loop(self):
         raise NotImplementedError
@@ -110,10 +115,11 @@ class IMUDriver(_BaseSensor):
 
             except socket.timeout:
                 continue
-            except Exception:
-                self._set_connected(False)
-                self._client.close()
+            except socket.error:
+                self._disconnect()
                 time.sleep(self._reconnect_delay_s)
+            except Exception:
+                continue
 
 
 class GPSDriver(_BaseSensor):
@@ -169,10 +175,11 @@ class GPSDriver(_BaseSensor):
 
             except socket.timeout:
                 continue
-            except Exception:
-                self._set_connected(False)
-                self._client.close()
+            except socket.error:
+                self._disconnect()
                 time.sleep(self._reconnect_delay_s)
+            except Exception:
+                continue
 
 
 class DVLDriver(_BaseSensor):
@@ -186,63 +193,12 @@ class DVLDriver(_BaseSensor):
             ),
             reconnect_delay_s=config.reconnect_delay_s,
         )
-        self._config = config
         self._buf = ''
         self._data = DVLData()
-        self._last_any_sample_t = 0.0
-        self._last_valid_sample_t = 0.0
 
     @property
     def data(self):
         return self._data
-
-    def _set_stale_state(self, now_t):
-        if self._last_valid_sample_t <= 0.0:
-            self._data = DVLData(
-                timestamp_sensor=self._data.timestamp_sensor,
-                fix_type=self._data.fix_type,
-                fix_quality=self._data.fix_quality,
-                vx=self._data.vx,
-                vy=self._data.vy,
-                vz=self._data.vz,
-                vel_err=self._data.vel_err,
-                dx=self._data.dx,
-                dy=self._data.dy,
-                DTB=self._data.DTB,
-                DTS=self._data.DTS,
-                beam_corr_a1=self._data.beam_corr_a1,
-                beam_corr_a2=self._data.beam_corr_a2,
-                beam_corr_a3=self._data.beam_corr_a3,
-                beam_corr_a4=self._data.beam_corr_a4,
-                velocity_source=self._data.velocity_source,
-                valid=False,
-                stale=True,
-                timestamp=now_t,
-            )
-            return
-
-        if now_t - self._last_valid_sample_t > self._config.dvl_stale_after_s:
-            self._data = DVLData(
-                timestamp_sensor=self._data.timestamp_sensor,
-                fix_type=self._data.fix_type,
-                fix_quality=self._data.fix_quality,
-                vx=self._data.vx,
-                vy=self._data.vy,
-                vz=self._data.vz,
-                vel_err=self._data.vel_err,
-                dx=self._data.dx,
-                dy=self._data.dy,
-                DTB=self._data.DTB,
-                DTS=self._data.DTS,
-                beam_corr_a1=self._data.beam_corr_a1,
-                beam_corr_a2=self._data.beam_corr_a2,
-                beam_corr_a3=self._data.beam_corr_a3,
-                beam_corr_a4=self._data.beam_corr_a4,
-                velocity_source=self._data.velocity_source,
-                valid=False,
-                stale=True,
-                timestamp=now_t,
-            )
 
     def _loop(self):
         while self._is_running():
@@ -251,8 +207,6 @@ class DVLDriver(_BaseSensor):
                 if not chunk:
                     raise socket.error('DVL socket closed')
 
-                now_t = time.time()
-                self._last_any_sample_t = now_t
                 self._set_connected(True)
 
                 self._buf += chunk.decode('ascii', 'ignore')
@@ -262,108 +216,31 @@ class DVLDriver(_BaseSensor):
                 while '\n' in self._buf:
                     line, self._buf = self._buf.split('\n', 1)
                     line = line.strip('\r\t ')
-                    if not line.startswith('$SON'):
+                    if not line.startswith('$SON31,'):
                         continue
 
                     sentence = line.split('*', 1)[0]
                     fields = sentence.split(',')
-                    if not fields:
+                    parsed = parse_son31(fields)
+                    if parsed is None:
                         continue
 
-                    prev = self._data
-                    msg = fields[0]
-                    if msg == '$SON31':
-                        parsed = parse_son31(fields)
-                        if parsed is None:
-                            continue
-
-                        fix_type = parsed.get('fix_type')
-                        fix_quality = parsed.get('fix_quality')
-                        if fix_type == 2:
-                            velocity_source = 'bottom-track'
-                        elif fix_type == 1:
-                            velocity_source = 'water-track'
-                        else:
-                            velocity_source = None
-
-                        vel_err = self._data.vel_err
-                        quality_ok = fix_quality is not None and fix_quality >= self._config.dvl_min_fix_quality
-                        vel_err_ok = vel_err is None or vel_err <= self._config.dvl_max_vel_err
-                        valid = velocity_source is not None and quality_ok and vel_err_ok
-                        stale = not valid
-                        if valid:
-                            self._last_valid_sample_t = now_t
-
-                        self._data = DVLData(
-                            timestamp_sensor=parsed.get('timestamp_sensor'),
-                            fix_type=fix_type,
-                            fix_quality=fix_quality,
-                            vx=parsed.get('vx'),
-                            vy=parsed.get('vy'),
-                            vz=parsed.get('vz'),
-                            vel_err=vel_err,
-                            dx=parsed.get('dx'),
-                            dy=parsed.get('dy'),
-                            DTB=parsed.get('DTB'),
-                            DTS=parsed.get('DTS'),
-                            beam_corr_a1=prev.beam_corr_a1,
-                            beam_corr_a2=prev.beam_corr_a2,
-                            beam_corr_a3=prev.beam_corr_a3,
-                            beam_corr_a4=prev.beam_corr_a4,
-                            velocity_source=velocity_source,
-                            valid=valid,
-                            stale=stale,
-                            timestamp=now_t,
-                        )
-                    elif msg == '$SON51':
-                        parsed = parse_son51(fields)
-                        if parsed is None:
-                            continue
-
-                        vel_err = parsed.get('vel_err')
-                        fix_quality = prev.fix_quality
-                        quality_ok = fix_quality is not None and fix_quality >= self._config.dvl_min_fix_quality
-                        vel_err_ok = vel_err is None or vel_err <= self._config.dvl_max_vel_err
-                        valid = prev.fix_type in (1, 2) and quality_ok and vel_err_ok
-                        stale = not valid
-                        if valid:
-                            self._last_valid_sample_t = now_t
-
-                        self._data = DVLData(
-                            timestamp_sensor=prev.timestamp_sensor,
-                            fix_type=prev.fix_type,
-                            fix_quality=prev.fix_quality,
-                            vx=prev.vx,
-                            vy=prev.vy,
-                            vz=prev.vz,
-                            vel_err=vel_err,
-                            dx=prev.dx,
-                            dy=prev.dy,
-                            DTB=prev.DTB,
-                            DTS=prev.DTS,
-                            beam_corr_a1=parsed.get('a1'),
-                            beam_corr_a2=parsed.get('a2'),
-                            beam_corr_a3=parsed.get('a3'),
-                            beam_corr_a4=parsed.get('a4'),
-                            velocity_source=prev.velocity_source,
-                            valid=valid,
-                            stale=stale,
-                            timestamp=now_t,
-                        )
-
-                self._set_stale_state(now_t)
+                    self._data = DVLData(
+                        vx=parsed.get('vx'),
+                        vy=parsed.get('vy'),
+                        vz=parsed.get('vz'),
+                        DTB=parsed.get('DTB'),
+                        DTS=parsed.get('DTS'),
+                        received_at=time.time(),
+                    )
 
             except socket.timeout:
-                now_t = time.time()
-                if self._last_any_sample_t > 0.0 and now_t - self._last_any_sample_t > self._config.dvl_disconnect_after_s:
-                    self._set_connected(False)
-                self._set_stale_state(now_t)
                 continue
-            except Exception:
-                self._set_connected(False)
-                self._client.close()
-                self._set_stale_state(time.time())
+            except socket.error:
+                self._disconnect()
                 time.sleep(self._reconnect_delay_s)
+            except Exception:
+                continue
 
 
 class BatteryDriver(_BaseSensor):
@@ -415,7 +292,8 @@ class BatteryDriver(_BaseSensor):
 
             except socket.timeout:
                 continue
-            except Exception:
-                self._set_connected(False)
-                self._client.close()
+            except socket.error:
+                self._disconnect()
                 time.sleep(self._reconnect_delay_s)
+            except Exception:
+                continue

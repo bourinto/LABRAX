@@ -18,13 +18,9 @@ def _to_float(value):
         return None
 
 
-def _to_int(value):
-    if value == '':
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
+def _to_negative_float(value):
+    value = _to_float(value)
+    return None if value is None else -value
 
 
 def parse_compass(frame):
@@ -94,33 +90,18 @@ def parse_son31(fields):
     if len(fields) < 12:
         return None
 
-    return {
-        'timestamp_sensor': _to_float(fields[1]),
-        'fix_type': _to_int(fields[2]),
-        'fix_quality': _to_float(fields[3]),
-        'vx': -_to_float(fields[4]),
-        'vy': _to_float(fields[5]),
-        'vz': _to_float(fields[6]),
-        'dx': _to_float(fields[8]),
-        'dy': _to_float(fields[9]),
-        'DTB': _to_float(fields[10]),
-        'DTS': _to_float(fields[11]),
-    }
-
-
-def parse_son51(fields):
-    if len(fields) < 11:
+    vx = _to_negative_float(fields[4])
+    vy = _to_float(fields[5])
+    vz = _to_float(fields[6])
+    DTB = _to_float(fields[10])
+    DTS = _to_float(fields[11])
+    if vx is None or vy is None or vz is None or DTB is None or DTS is None:
         return None
 
     return {
-        'timestamp_sensor': _to_float(fields[1]),
-        'cell_id': _to_int(fields[2]),
-        'vx': -_to_float(fields[3]),
-        'vy': _to_float(fields[4]),
-        'vz': _to_float(fields[5]),
-        'vel_err': _to_float(fields[6]),
-        'a1': _to_float(fields[7]),
-        'a2': _to_float(fields[8]),
-        'a3': _to_float(fields[9]),
-        'a4': _to_float(fields[10]),
+        'vx': vx,
+        'vy': vy,
+        'vz': vz,
+        'DTB': DTB,
+        'DTS': DTS,
     }

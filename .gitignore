@@ -1,5 +1,6 @@
 # Logs
 log_*/
+*.csv
 
 # Python virtual environments
 .venv/

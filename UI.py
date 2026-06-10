@@ -224,8 +224,8 @@ def _safe_disarm(robot):
 
 def draw_ui(left_y, right_x, right_y, thrust, fins, connected, armed,
             heading, heading_connected, compass_pitch, compass_roll,
-            dvl_connected, dvl_valid, dvl_stale, dvl_source,
-            dvl_fix_quality, dvl_vx, dvl_vy, dvl_vz, dvl_vel_err,
+            dvl_connected, dvl_vx, dvl_vy, dvl_vz,
+            dvl_DTB, dvl_DTS,
             gnss_connected, lat, lon, lat0, lon0, local_x, local_y, sats,
             battery_connected, battery_percent):
     img = np.zeros((620, 980, 3), dtype=np.uint8)
@@ -280,28 +280,22 @@ def draw_ui(left_y, right_x, right_y, thrust, fins, connected, armed,
         dvl_fill = (38, 28, 28)
         dvl_border = RED
         dvl_status = "DISCONNECTED"
-    elif dvl_valid:
+    else:
         dvl_fill = (24, 38, 24)
         dvl_border = GREEN
         dvl_status = "OK"
-    else:
-        dvl_fill = (42, 36, 18)
-        dvl_border = ORANGE
-        dvl_status = "STALE"
 
     box(img, inner_x0, dvl_y0, inner_x1, dvl_y1, dvl_fill, dvl_border, 1)
     text(img, "DVL", (inner_x0 + 10, dvl_y0 + 22), 0.58, WHITE, 1)
-    dvl_source_text = dvl_source if dvl_source else "N/A"
-    text(img, "Status: %s   Src: %s" % (dvl_status, dvl_source_text),
+    text(img, "Status: %s" % dvl_status,
          (inner_x0 + 10, dvl_y0 + 48), 0.43, dvl_border, 1)
-    text(img, "Err: %s   Q: %s" % (_fmt_or_na(dvl_vel_err, "%.3f"),
-                                  _fmt_or_na(dvl_fix_quality, "%.1f")),
+    text(img, "DTB %s m  DTS %s m" % (_fmt_or_na(dvl_DTB, "%.2f"),
+                                      _fmt_or_na(dvl_DTS, "%.2f")),
          (inner_x0 + 10, dvl_y0 + 70), 0.43, dvl_border, 1)
-    dvl_vel_color = WHITE if dvl_valid else dvl_border
     text(img, "Vx %s  Vy %s  Vz %s" % (_fmt_or_na(dvl_vx, "%+.2f"),
                                       _fmt_or_na(dvl_vy, "%+.2f"),
                                       _fmt_or_na(dvl_vz, "%+.2f")),
-         (inner_x0 + 10, dvl_y0 + 92), 0.43, dvl_vel_color, 1)
+         (inner_x0 + 10, dvl_y0 + 92), 0.43, WHITE, 1)
 
     gnss_y0 = dvl_y1 + 8
     gnss_y1 = gnss_y0 + 112
@@ -461,14 +455,11 @@ if __name__ == '__main__':
                 imu.pitch,
                 imu.roll,
                 robot.dvl.connected,
-                dvl.valid,
-                dvl.stale,
-                dvl.velocity_source,
-                dvl.fix_quality,
                 dvl.vx,
                 dvl.vy,
                 dvl.vz,
-                dvl.vel_err,
+                dvl.DTB,
+                dvl.DTS,
                 robot.gps.connected,
                 lat,
                 lon,
