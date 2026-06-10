@@ -37,7 +37,7 @@ class _BaseSensor(object):
 
         self._client.close()
         if self._thread is not None:
-            self._thread.join(1.0)
+            self._thread.join()
 
     def _is_running(self):
         with self._lock:
@@ -160,8 +160,6 @@ class GPSDriver(_BaseSensor):
 
                     sentence = line.split('*', 1)[0]
                     fields = sentence.split(',')
-                    if not fields:
-                        continue
 
                     parsed = parse_gga(fields)
                     if parsed is None:
@@ -226,12 +224,12 @@ class DVLDriver(_BaseSensor):
                         continue
 
                     self._data = DVLData(
+                        timestamp=parsed.get('timestamp'),
                         vx=parsed.get('vx'),
                         vy=parsed.get('vy'),
                         vz=parsed.get('vz'),
                         DTB=parsed.get('DTB'),
                         DTS=parsed.get('DTS'),
-                        received_at=time.time(),
                     )
 
             except socket.timeout:

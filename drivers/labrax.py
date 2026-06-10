@@ -39,13 +39,21 @@ class Labrax(object):
         self.battery.start()
 
     def stop(self):
-        self.disarm()
-        self.imu.stop()
-        self.dvl.stop()
-        self.gps.stop()
-        self.battery.stop()
-        self.thruster.close()
-        self.fins.close()
+        self._armed = False
+        for action in (
+            self.thruster.stop,
+            self.fins.neutral,
+            self.imu.stop,
+            self.dvl.stop,
+            self.gps.stop,
+            self.battery.stop,
+            self.thruster.close,
+            self.fins.close,
+        ):
+            try:
+                action()
+            except Exception:
+                pass
 
     def neutralize(self):
         self.thruster.stop()

@@ -42,17 +42,6 @@ class TCPClient(object):
             except Exception:
                 pass
 
-    def _drop_socket(self):
-        with self._lock:
-            sock = self._socket
-            self._socket = None
-
-        if sock is not None:
-            try:
-                sock.close()
-            except Exception:
-                pass
-
     def sendall(self, payload):
         last_error = None
         for _ in range(2):
@@ -66,7 +55,7 @@ class TCPClient(object):
                 return
             except Exception as exc:
                 last_error = exc
-                self._drop_socket()
+                self.close()
 
         raise last_error
 
@@ -82,5 +71,5 @@ class TCPClient(object):
         except socket.timeout:
             raise
         except Exception:
-            self._drop_socket()
+            self.close()
             raise

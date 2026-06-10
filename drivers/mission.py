@@ -7,7 +7,7 @@ import time
 from .config import LabraxTCPConfig
 from .labrax import Labrax
 
-DVL_OFFSET_X_FROM_ROBOT = 0.68#1.08
+DVL_OFFSET_X_FROM_ROBOT = 1.08
 
 
 def wrap_angle_deg(angle_deg):
@@ -83,7 +83,7 @@ def _robot_offset_from_dvl(imu):
     yaw = math.radians(heading)
     pitch = math.radians(pitch)
 
-    ox = DVL_OFFSET_X_FROM_ROBOT
+    ox = -DVL_OFFSET_X_FROM_ROBOT
     return (
         math.cos(yaw) * math.cos(pitch) * ox,
         math.sin(yaw) * math.cos(pitch) * ox,
@@ -97,8 +97,8 @@ class DeadReckoning(object):
     orientation and depth measurements.
 
     The estimator maintains a 3D position estimate ``(x, y, z)`` in the world
-    frame. Each new DVL sample is integrated once using its local reception
-    timestamp and trapezoidal integration.
+    frame. Each new DVL sample is integrated once using its sensor timestamp
+    and trapezoidal integration.
     
     Then computed DVL position is shifted in space with transform matrix and attitude that gives true robot positon.    
     
@@ -118,7 +118,7 @@ class DeadReckoning(object):
           integration state.
         - ``update()`` should be called periodically with the latest IMU and
           DVL measurements.
-        - Time integration uses the DVL ``received_at`` timestamps.
+        - Time integration uses the DVL ``timestamp`` values.
     """
     def __init__(self, vz_ignored=True):
         self.vz_ignored = bool(vz_ignored)
@@ -139,7 +139,7 @@ class DeadReckoning(object):
         if depth is not None:
             self._dvl_z = depth
 
-        sample_t = getattr(dvl, 'received_at', None)
+        sample_t = getattr(dvl, 'timestamp', None)
         if sample_t is not None and sample_t != self._last_sample_t:
             velocity = _world_velocity_from_dvl(imu, dvl, self.vz_ignored)
             if self._last_sample_t is not None and self._last_velocity is not None and velocity is not None:

@@ -20,10 +20,10 @@ class BatteryData(object):
 
 
 class DVLData(object):
-    def __init__(self, vx=None, vy=None, vz=None, DTB=None, DTS=None, received_at=None):
+    def __init__(self, timestamp=None, vx=None, vy=None, vz=None, DTB=None, DTS=None):
+        self.timestamp = timestamp
         self.vx = vx
         self.vy = vy
         self.vz = vz
         self.DTB = DTB
         self.DTS = DTS
-        self.received_at = received_at

@@ -90,15 +90,17 @@ def parse_son31(fields):
     if len(fields) < 12:
         return None
 
+    timestamp = _to_float(fields[1])
     vx = _to_negative_float(fields[4])
     vy = _to_float(fields[5])
     vz = _to_float(fields[6])
     DTB = _to_float(fields[10])
     DTS = _to_float(fields[11])
-    if vx is None or vy is None or vz is None or DTB is None or DTS is None:
+    if timestamp is None or vx is None or vy is None or vz is None or DTB is None or DTS is None:
         return None
 
     return {
+        'timestamp': timestamp,
         'vx': vx,
         'vy': vy,
         'vz': vz,

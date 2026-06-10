@@ -33,6 +33,7 @@ dist/
 # Tool caches
 .agents/
 AGENTS.md
+.codex/
 .gitignore
 .mypy_cache/
 .pytest_cache/

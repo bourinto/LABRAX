@@ -17,9 +17,8 @@ Hypothèses :
     roll  = roulis
 - Les rotations sont appliquées selon la convention ZYX
   (yaw → pitch → roll).
-- Les vitesses verticales DVL sont ignorées par défaut
-  (VHEAVE_MODEL_WEIGHT = 0), la profondeur étant considérée
-  comme la source de référence pour l'axe vertical.
+- Les vitesses verticales DVL sont ignorées, la profondeur IMU
+  étant considérée comme la source de référence pour l'axe vertical.
 - Les échantillons dont la norme de vitesse DVL dépasse
   MAX_DVL_SPEED sont rejetés.
 
@@ -44,8 +43,6 @@ import pandas as pd
 from scipy.spatial.transform import Rotation
 
 
-DEPTH_GAIN = 0
-VHEAVE_MODEL_WEIGHT = 0.8
 MAX_DVL_SPEED = 3.0
 DVL_OFFSET_X_FROM_ROBOT = 1.08
 DVL_TO_ROBOT = np.array(
@@ -75,29 +72,34 @@ def load_log_columns(csv_path: str) -> LogColumns:
 
     dvl_velocity = log[["vsurge", "vsway", "vheave"]].to_numpy(float)
     dvl_speed = np.linalg.norm(dvl_velocity, axis=1)
-    keep = ~np.isfinite(dvl_speed) | (dvl_speed <= MAX_DVL_SPEED)
+    angles = log[["yaw", "pitch", "roll"]].to_numpy(float)
+    timestamp = log["timestamp"].to_numpy(float)
+    keep = (
+        np.isfinite(timestamp)
+        & np.isfinite(dvl_speed)
+        & (dvl_speed <= MAX_DVL_SPEED)
+        & np.isfinite(angles).all(axis=1)
+    )
 
     return LogColumns(
-        timestamp=log.loc[keep, "timestamp"].to_numpy(float),
+        timestamp=timestamp[keep],
         depth=log.loc[keep, "depth"].to_numpy(float),
         dvl_velocity=dvl_velocity[keep],
-        angles=log.loc[keep, ["yaw", "pitch", "roll"]].to_numpy(float),
+        angles=angles[keep],
     )
 
 
 def world_velocities(columns: LogColumns) -> np.ndarray:
     body_vel = columns.dvl_velocity.copy()
-    body_vel[:, 2] *= VHEAVE_MODEL_WEIGHT
-    if VHEAVE_MODEL_WEIGHT == 0.0:
-        body_vel[:, 2] = 0.0
-
-    valid = np.isfinite(body_vel).all(axis=1)
-    body_vel[~valid] = 0.0
+    body_vel[:, 2] = 0.0
 
     return Rotation.from_euler("ZYX", columns.angles, degrees=True).apply(body_vel)
 
 
 def trajectory(columns: LogColumns) -> np.ndarray:
+    if len(columns.timestamp) == 0:
+        raise ValueError("No valid DVL samples in log")
+
     velocity = world_velocities(columns)
     dvl_position = np.zeros((len(columns.timestamp), 3))
 
@@ -106,7 +108,7 @@ def trajectory(columns: LogColumns) -> np.ndarray:
         dt = max(columns.timestamp[i] - columns.timestamp[i - 1], 0.0)
         dvl_position[i] = dvl_position[i - 1] + 0.5 * (velocity[i - 1] + velocity[i]) * dt
         if np.isfinite(columns.depth[i]):
-            dvl_position[i, 2] += DEPTH_GAIN * (columns.depth[i] - dvl_position[i, 2])
+            dvl_position[i, 2] = columns.depth[i]
 
     frames = Rotation.from_euler("ZYX", columns.angles, degrees=True).as_matrix()
     robot_offset = frames @ DVL_TO_ROBOT[:3, 3]
