@@ -1,0 +1,38 @@
+# Logs
+log_*/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+.env/
+.pyvenv*/
+.pyvenv2/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+__*.py
+
+# Build and compilation artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.so
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.dylib
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
