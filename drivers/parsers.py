@@ -27,27 +27,6 @@ def _to_int(value):
         return None
 
 
-def validate_nmea_checksum(frame):
-    if not frame.startswith('$') or '*' not in frame:
-        return False
-
-    body, checksum_text = frame[1:].split('*', 1)
-    checksum_text = checksum_text.strip()
-    if len(checksum_text) < 2:
-        return False
-
-    expected = 0
-    for char in body:
-        expected ^= ord(char)
-
-    try:
-        received = int(checksum_text[:2], 16)
-    except ValueError:
-        return False
-
-    return expected == received
-
-
 def parse_compass(frame):
     def field(letter):
         if letter == 'C':
@@ -56,10 +35,7 @@ def parse_compass(frame):
             match = re.search(r'%s([+-]?\d+(?:\.\d+)?)' % re.escape(letter), frame)
         if not match:
             return None
-        try:
-            return float(match.group(1))
-        except ValueError:
-            return None
+        return float(match.group(1))
 
     heading = field('C')
     pitch = field('P')
@@ -67,7 +43,7 @@ def parse_compass(frame):
     temperature = field('T')
     depth = field('D')
 
-    if heading is None and pitch is None and roll is None and temperature is None and depth is None:
+    if heading is None or pitch is None or roll is None or temperature is None or depth is None:
         return None
 
     return {
@@ -112,19 +88,6 @@ def parse_gga(fields):
         satellites = None
 
     return latitude, longitude, satellites
-
-
-def parse_rmc(fields):
-    if len(fields) < 7:
-        return None
-
-    status = fields[2].upper() if fields[2] else 'V'
-    if status != 'A':
-        return None
-
-    latitude = nmea_to_decimal(fields[3], fields[4])
-    longitude = nmea_to_decimal(fields[5], fields[6])
-    return latitude, longitude
 
 
 def parse_son31(fields):

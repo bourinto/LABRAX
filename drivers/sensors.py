@@ -4,7 +4,7 @@ import time
 
 from .core import Endpoint, TCPClient
 from .models import BatteryData, DVLData, GPSData, IMUData
-from .parsers import clamp, parse_compass, parse_gga, parse_rmc, parse_son31, parse_son51, validate_nmea_checksum
+from .parsers import parse_compass, parse_gga, parse_son31, parse_son51
 
 
 class _BaseSensor(object):
@@ -106,7 +106,6 @@ class IMUDriver(_BaseSensor):
                         roll=parsed.get('roll'),
                         temperature=parsed.get('temperature'),
                         depth=parsed.get('depth'),
-                        timestamp=time.time(),
                     )
 
             except socket.timeout:
@@ -150,7 +149,7 @@ class GPSDriver(_BaseSensor):
                 while '\n' in self._buf:
                     line, self._buf = self._buf.split('\n', 1)
                     line = line.strip('\r\t ')
-                    if not line.startswith('$GP'):
+                    if not line.startswith('$GPGGA,'):
                         continue
 
                     sentence = line.split('*', 1)[0]
@@ -158,31 +157,15 @@ class GPSDriver(_BaseSensor):
                     if not fields:
                         continue
 
-                    msg = fields[0]
-                    if msg == '$GPGGA':
-                        parsed = parse_gga(fields)
-                        if parsed is None:
-                            continue
-                        latitude, longitude, satellites = parsed
-                        self._data = GPSData(
-                            latitude=latitude if latitude is not None else self._data.latitude,
-                            longitude=longitude if longitude is not None else self._data.longitude,
-                            satellites=satellites if satellites is not None else self._data.satellites,
-                            valid_fix=True,
-                            timestamp=time.time(),
-                        )
-                    elif msg == '$GPRMC':
-                        parsed = parse_rmc(fields)
-                        if parsed is None:
-                            continue
-                        latitude, longitude = parsed
-                        self._data = GPSData(
-                            latitude=latitude if latitude is not None else self._data.latitude,
-                            longitude=longitude if longitude is not None else self._data.longitude,
-                            satellites=self._data.satellites,
-                            valid_fix=True,
-                            timestamp=time.time(),
-                        )
+                    parsed = parse_gga(fields)
+                    if parsed is None:
+                        continue
+                    latitude, longitude, satellites = parsed
+                    self._data = GPSData(
+                        latitude=latitude,
+                        longitude=longitude,
+                        satellites=satellites,
+                    )
 
             except socket.timeout:
                 continue
@@ -280,10 +263,6 @@ class DVLDriver(_BaseSensor):
                     line, self._buf = self._buf.split('\n', 1)
                     line = line.strip('\r\t ')
                     if not line.startswith('$SON'):
-                        continue
-                    if '*' not in line:
-                        continue
-                    if not validate_nmea_checksum(line):
                         continue
 
                     sentence = line.split('*', 1)[0]
@@ -432,7 +411,7 @@ class BatteryDriver(_BaseSensor):
                     except ValueError:
                         continue
 
-                    self._data = BatteryData(percent=int(clamp(percent, 0, 100)), timestamp=time.time())
+                    self._data = BatteryData(percent=percent)
 
             except socket.timeout:
                 continue

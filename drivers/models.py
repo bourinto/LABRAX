@@ -2,28 +2,24 @@ import time
 
 
 class IMUData(object):
-    def __init__(self, heading=None, pitch=None, roll=None, temperature=None, depth=None, timestamp=None):
+    def __init__(self, heading=None, pitch=None, roll=None, temperature=None, depth=None):
         self.heading = heading
         self.pitch = pitch
         self.roll = roll
         self.temperature = temperature
         self.depth = depth
-        self.timestamp = time.time() if timestamp is None else timestamp
 
 
 class GPSData(object):
-    def __init__(self, latitude=None, longitude=None, satellites=None, valid_fix=False, timestamp=None):
+    def __init__(self, latitude=None, longitude=None, satellites=None):
         self.latitude = latitude
         self.longitude = longitude
         self.satellites = satellites
-        self.valid_fix = bool(valid_fix)
-        self.timestamp = time.time() if timestamp is None else timestamp
 
 
 class BatteryData(object):
-    def __init__(self, percent=None, timestamp=None):
+    def __init__(self, percent=None):
         self.percent = percent
-        self.timestamp = time.time() if timestamp is None else timestamp
 
 
 class DVLData(object):
