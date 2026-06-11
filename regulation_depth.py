@@ -5,17 +5,25 @@ import time
 from drivers import Mission, Security
 
 
-DIVE_TIME = 8.0
+DIVE_TIME = 12
 PITCH_TARGET_DIVE = 70.0
 PITCH_REG_SCALE = 5.0
 
-REGULATION_TIME = 999.0
+REGULATION_TIME = 68
 
 TARGET_DEPTH = 3.0
 
-DEPTH_KP = 2.0
-DEPTH_KI = 0.0
-DEPTH_KD = 0.0
+# IRL parameters
+NOMINAL_SPEED = -0.5
+DEPTH_KP = 0.4
+DEPTH_KI = 0
+DEPTH_KD = 10.0
+
+# Simulation parameters
+# NOMINAL_SPEED = 0.5
+#DEPTH_KP = 0.4
+#DEPTH_KI = 0
+#DEPTH_KD = 10.0
 
 
 if __name__ == '__main__':
@@ -33,7 +41,9 @@ if __name__ == '__main__':
 
             mission.send(ut, uy, up, imu=imu)
 
-        mission.wait_pitch()
+        security.init(30.0)
+        while security.check(exit=True) and mission.imu.depth > TARGET_DEPTH + 0.5:
+            mission.send(0.0, 0.0, 0.0)
 
         integral = 0.0
         prev_error = 0.0
@@ -43,11 +53,11 @@ if __name__ == '__main__':
 
             error = imu.depth - TARGET_DEPTH
 
-            integral = min(integral + error, 1.0)
+            integral = integral + error
             derivative = (error - prev_error)
             regulation = DEPTH_KP * error + DEPTH_KI * integral + DEPTH_KD * derivative
 
-            ut = min(0.0, regulation)
+            ut = -0.5 + regulation
             uy = -1.0
             up = -1.0
 
