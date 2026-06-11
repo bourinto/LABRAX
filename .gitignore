@@ -14,7 +14,7 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
-__*.py
+-*.py
 
 # Build and compilation artifacts
 build/
