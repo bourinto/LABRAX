@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
 """Read a CSV log and plot heading and vsurge over time."""
 
-from __future__ import annotations
-
 import argparse
 import csv
 import math
 import statistics
 from pathlib import Path
-from typing import List, Tuple
+
+import matplotlib.pyplot as plt
 
 
-def _parse_float(value: str | None) -> float:
-    if value is None:
-        return float("nan")
-    text = str(value).strip()
-    if not text:
-        return float("nan")
+def _parse_float(value):
     try:
-        return float(text)
-    except ValueError:
+        return float(value)
+    except (TypeError, ValueError):
         return float("nan")
 
 
-def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float], int]:
-    timestamps: List[float] = []
-    headings: List[float] = []
-    vsurges: List[float] = []
-    total_rows = 0
+def read_samples(csv_path):
+    timestamps = []
+    headings = []
+    vsurges = []
 
     with csv_path.open("r", newline="") as csv_file:
         reader = csv.DictReader(csv_file, skipinitialspace=True)
@@ -35,7 +28,6 @@ def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float],
             reader.fieldnames = [name.strip() for name in reader.fieldnames]
 
         for row in reader:
-            total_rows += 1
             timestamp = _parse_float(row.get("timestamp"))
             heading = _parse_float(row.get("heading", row.get("yaw")))
             vsurge = _parse_float(row.get("vsurge"))
@@ -49,14 +41,14 @@ def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float],
                 headings.append(heading)
                 vsurges.append(vsurge)
 
-    return timestamps, headings, vsurges, total_rows
+    return timestamps, headings, vsurges
 
 
-def wrap_angle_delta(delta_deg: float) -> float:
+def wrap_angle_delta(delta_deg):
     return (delta_deg + 180.0) % 360.0 - 180.0
 
 
-def unwrap_headings(headings: List[float]) -> List[float]:
+def unwrap_headings(headings):
     if not headings:
         return []
 
@@ -68,28 +60,18 @@ def unwrap_headings(headings: List[float]) -> List[float]:
     return unwrapped
 
 
-def filter_start(
-    timestamps: List[float],
-    headings: List[float],
-    vsurges: List[float],
-    start_timestamp: float | None,
-) -> Tuple[List[float], List[float], List[float]]:
-    if start_timestamp is None:
-        return timestamps, headings, vsurges
-
-    filtered_timestamps: List[float] = []
-    filtered_headings: List[float] = []
-    filtered_vsurges: List[float] = []
-    for timestamp, heading, vsurge in zip(timestamps, headings, vsurges):
-        if timestamp >= start_timestamp:
-            filtered_timestamps.append(timestamp)
-            filtered_headings.append(heading)
-            filtered_vsurges.append(vsurge)
-
-    return filtered_timestamps, filtered_headings, filtered_vsurges
+def filter_start(timestamps, headings, vsurges, start_timestamp):
+    samples = [
+        (timestamp, heading, vsurge)
+        for timestamp, heading, vsurge in zip(timestamps, headings, vsurges)
+        if start_timestamp is None or timestamp >= start_timestamp
+    ]
+    if not samples:
+        return [], [], []
+    return [list(values) for values in zip(*samples)]
 
 
-def linear_fit(timestamps: List[float], headings: List[float]) -> Tuple[float, float, float]:
+def linear_fit(timestamps, headings):
     if len(headings) < 2:
         raise SystemExit("At least two samples are required to compute a linear fit.")
 
@@ -116,28 +98,18 @@ def linear_fit(timestamps: List[float], headings: List[float]) -> Tuple[float, f
 
 def plot_radius_inputs(
     *,
-    timestamps: List[float],
-    headings: List[float],
-    vsurges: List[float],
-    slope: float,
-    intercept: float,
-    r_squared: float,
-    mean_vsurge: float,
-    median_vsurge: float,
-    radius_mean: float,
-    radius_median: float,
-    output: Path | None,
-) -> None:
-    try:
-        import matplotlib.pyplot as plt
-    except ModuleNotFoundError as exc:
-        raise SystemExit(
-            "matplotlib is required for plotting. Install with: pip install matplotlib"
-        ) from exc
-
-    if not headings:
-        raise SystemExit("No valid samples to plot.")
-
+    timestamps,
+    headings,
+    vsurges,
+    slope,
+    intercept,
+    r_squared,
+    mean_vsurge,
+    median_vsurge,
+    radius_mean,
+    radius_median,
+    output,
+):
     heading_color = "#2563eb"
     fit_color = "#f97316"
     surge_color = "#059669"
@@ -210,7 +182,7 @@ def plot_radius_inputs(
         plt.show()
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     parser = argparse.ArgumentParser(
         description="Read a CSV log and plot heading, vsurge, and radius estimate."
     )
@@ -230,10 +202,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main():
     args = parse_args()
-    timestamps, headings, vsurges, total_rows = read_samples(args.csv_path)
-    valid_rows = len(headings)
+    timestamps, headings, vsurges = read_samples(args.csv_path)
     timestamps, headings, vsurges = filter_start(
         timestamps, headings, vsurges, args.start
     )
@@ -242,22 +213,19 @@ def main() -> None:
         raise SystemExit("No valid samples after filtering.")
 
     slope, intercept, r_squared = linear_fit(timestamps, headings)
-    theta_dot = math.radians(slope)
-    if theta_dot == 0.0:
-        raise SystemExit("Cannot compute radius: theta_dot is zero.")
+    yaw_dot = math.radians(slope)
+    if yaw_dot == 0.0:
+        raise SystemExit("Cannot compute radius: yaw_dot is zero.")
 
-    mean_vsurge = float(statistics.fmean(vsurges))
-    median_vsurge = float(statistics.median(vsurges))
-    radius_mean = mean_vsurge / theta_dot
-    radius_median = median_vsurge / theta_dot
+    mean_vsurge = statistics.fmean(vsurges)
+    median_vsurge = statistics.median(vsurges)
+    radius_mean = mean_vsurge / yaw_dot
+    radius_median = median_vsurge / yaw_dot
 
-    print("Rows total: %d" % total_rows)
-    print("Rows valid: %d" % valid_rows)
-    print("Rows plotted: %d" % len(headings))
     print("Linear fit: heading = %.6f * timestamp + %.6f" % (slope, intercept))
     print("R^2: %.6f" % r_squared)
-    print("Theta dot: %.6f deg/s" % slope)
-    print("Theta dot: %.6f rad/s" % theta_dot)
+    print("Yaw dot: %.6f deg/s" % slope)
+    print("Yaw dot: %.6f rad/s" % yaw_dot)
     print("Mean vsurge: %.6f m/s" % mean_vsurge)
     print("Median vsurge: %.6f m/s" % median_vsurge)
     print("Radius estimate using mean vsurge: %.6f m" % radius_mean)

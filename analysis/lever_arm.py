@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
 """Read a CSV log and estimate the torpedo rotation lever arm."""
 
-from __future__ import annotations
-
 import argparse
 import csv
 import math
 import statistics
 from pathlib import Path
-from typing import List, Tuple
+
+import matplotlib.pyplot as plt
 
 
-def _parse_float(value: str | None) -> float:
-    if value is None:
-        return float("nan")
-    text = str(value).strip()
-    if not text:
-        return float("nan")
+def _parse_float(value):
     try:
-        return float(text)
-    except ValueError:
+        return float(value)
+    except (TypeError, ValueError):
         return float("nan")
 
 
-def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float], int]:
-    timestamps: List[float] = []
-    yaws: List[float] = []
-    vsways: List[float] = []
-    total_rows = 0
+def read_samples(csv_path):
+    timestamps = []
+    yaws = []
+    vsways = []
 
     with csv_path.open("r", newline="") as csv_file:
         reader = csv.DictReader(csv_file, skipinitialspace=True)
@@ -35,7 +28,6 @@ def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float],
             reader.fieldnames = [name.strip() for name in reader.fieldnames]
 
         for row in reader:
-            total_rows += 1
             timestamp = _parse_float(row.get("timestamp"))
             yaw = _parse_float(row.get("heading", row.get("yaw")))
             vsway = _parse_float(row.get("vsway"))
@@ -49,14 +41,14 @@ def read_samples(csv_path: Path) -> Tuple[List[float], List[float], List[float],
                 yaws.append(yaw)
                 vsways.append(vsway)
 
-    return timestamps, yaws, vsways, total_rows
+    return timestamps, yaws, vsways
 
 
-def wrap_angle_delta(delta_deg: float) -> float:
+def wrap_angle_delta(delta_deg):
     return (delta_deg + 180.0) % 360.0 - 180.0
 
 
-def unwrap_angles(angles: List[float]) -> List[float]:
+def unwrap_angles(angles):
     if not angles:
         return []
 
@@ -68,32 +60,19 @@ def unwrap_angles(angles: List[float]) -> List[float]:
     return unwrapped
 
 
-def filter_timestamps(
-    timestamps: List[float],
-    yaws: List[float],
-    vsways: List[float],
-    start_timestamp: float | None,
-    end_timestamp: float | None,
-) -> Tuple[List[float], List[float], List[float]]:
-    if start_timestamp is None and end_timestamp is None:
-        return timestamps, yaws, vsways
-
-    filtered_timestamps: List[float] = []
-    filtered_yaws: List[float] = []
-    filtered_vsways: List[float] = []
-    for timestamp, yaw, vsway in zip(timestamps, yaws, vsways):
-        if (
-            (start_timestamp is None or timestamp >= start_timestamp)
-            and (end_timestamp is None or timestamp <= end_timestamp)
-        ):
-            filtered_timestamps.append(timestamp)
-            filtered_yaws.append(yaw)
-            filtered_vsways.append(vsway)
-
-    return filtered_timestamps, filtered_yaws, filtered_vsways
+def filter_timestamps(timestamps, yaws, vsways, start_timestamp, end_timestamp):
+    samples = [
+        (timestamp, yaw, vsway)
+        for timestamp, yaw, vsway in zip(timestamps, yaws, vsways)
+        if (start_timestamp is None or timestamp >= start_timestamp)
+        and (end_timestamp is None or timestamp <= end_timestamp)
+    ]
+    if not samples:
+        return [], [], []
+    return [list(values) for values in zip(*samples)]
 
 
-def linear_fit(timestamps: List[float], angles: List[float]) -> Tuple[float, float, float]:
+def linear_fit(timestamps, angles):
     if len(angles) < 2:
         raise SystemExit("At least two samples are required to compute a linear fit.")
 
@@ -120,28 +99,18 @@ def linear_fit(timestamps: List[float], angles: List[float]) -> Tuple[float, flo
 
 def plot_lever_arm_inputs(
     *,
-    timestamps: List[float],
-    yaws: List[float],
-    vsways: List[float],
-    slope: float,
-    intercept: float,
-    r_squared: float,
-    mean_vsway: float,
-    median_vsway: float,
-    lever_arm_mean: float,
-    lever_arm_median: float,
-    output: Path | None,
-) -> None:
-    try:
-        import matplotlib.pyplot as plt
-    except ModuleNotFoundError as exc:
-        raise SystemExit(
-            "matplotlib is required for plotting. Install with: pip install matplotlib"
-        ) from exc
-
-    if not yaws:
-        raise SystemExit("No valid samples to plot.")
-
+    timestamps,
+    yaws,
+    vsways,
+    slope,
+    intercept,
+    r_squared,
+    mean_vsway,
+    median_vsway,
+    lever_arm_mean,
+    lever_arm_median,
+    output,
+):
     yaw_color = "#2563eb"
     fit_color = "#f97316"
     sway_color = "#059669"
@@ -214,7 +183,7 @@ def plot_lever_arm_inputs(
         plt.show()
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     parser = argparse.ArgumentParser(
         description="Read a CSV log and estimate the torpedo rotation lever arm."
     )
@@ -240,10 +209,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main():
     args = parse_args()
-    timestamps, yaws, vsways, total_rows = read_samples(args.csv_path)
-    valid_rows = len(yaws)
+    timestamps, yaws, vsways = read_samples(args.csv_path)
     timestamps, yaws, vsways = filter_timestamps(
         timestamps, yaws, vsways, args.start, args.end
     )
@@ -252,22 +220,19 @@ def main() -> None:
         raise SystemExit("No valid samples after filtering.")
 
     slope, intercept, r_squared = linear_fit(timestamps, yaws)
-    theta_dot = math.radians(slope)
-    if theta_dot == 0.0:
-        raise SystemExit("Cannot compute lever arm: theta_dot is zero.")
+    yaw_dot = math.radians(slope)
+    if yaw_dot == 0.0:
+        raise SystemExit("Cannot compute lever arm: yaw_dot is zero.")
 
-    mean_vsway = float(statistics.fmean(vsways))
-    median_vsway = float(statistics.median(vsways))
-    lever_arm_mean = mean_vsway / theta_dot
-    lever_arm_median = median_vsway / theta_dot
+    mean_vsway = statistics.fmean(vsways)
+    median_vsway = statistics.median(vsways)
+    lever_arm_mean = mean_vsway / yaw_dot
+    lever_arm_median = median_vsway / yaw_dot
 
-    print("Rows total: %d" % total_rows)
-    print("Rows valid: %d" % valid_rows)
-    print("Rows plotted: %d" % len(yaws))
     print("Linear fit: yaw = %.6f * timestamp + %.6f" % (slope, intercept))
     print("R^2: %.6f" % r_squared)
-    print("Theta dot: %.6f deg/s" % slope)
-    print("Theta dot: %.6f rad/s" % theta_dot)
+    print("Yaw dot: %.6f deg/s" % slope)
+    print("Yaw dot: %.6f rad/s" % yaw_dot)
     print("Mean vsway: %.6f m/s" % mean_vsway)
     print("Median vsway: %.6f m/s" % median_vsway)
     print("Lever arm estimate using mean vsway: %.6f m" % lever_arm_mean)
