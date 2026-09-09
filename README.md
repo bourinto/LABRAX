@@ -74,3 +74,21 @@ python3 analysis/trajectory_dvl.py path/to/mission_log.csv --cylinder
 
 See the [driver user guide](drivers-user-guide.md) before creating a
 mission or connecting the software to the vehicle.
+
+## License and attribution
+
+Copyright © 2026 [bourinto](https://github.com/bourinto).
+
+This project is free and open-source software under the
+[BSD 3-Clause License](LICENSE). It may be used, modified, forked, and
+redistributed, including commercially, provided that the copyright notice,
+license conditions, and disclaimer are preserved as required by the license.
+
+Publications, videos, figures, datasets, or other content based on this project
+should also cite it. Citation metadata is provided in [`CITATION.cff`](CITATION.cff),
+and the suggested short form is:
+
+> bourinto, *LABRAX Embedded Control*, 2026,
+> <https://github.com/bourinto/LABRAX>.
+
+This attribution must not imply endorsement by the author.

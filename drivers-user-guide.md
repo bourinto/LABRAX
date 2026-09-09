@@ -552,3 +552,13 @@ the top of `UI.py`.
 `Mission` opens its output only when entering the `with` block. Check write
 permission in the script directory and use `output_path=` when another location
 is required. Generated `*.csv` files are intentionally ignored by Git.
+
+## 13. License and attribution
+
+The project is distributed under the BSD 3-Clause License. Source and binary
+redistributions, including modified versions and forks, must preserve the
+copyright notice, license conditions, and disclaimer found in `LICENSE`.
+
+Content based on LABRAX should credit the project using `CITATION.cff` or the
+short citation given in the root `README.md`. Attribution does not grant
+permission to imply that bourinto endorses a derived project or its results.

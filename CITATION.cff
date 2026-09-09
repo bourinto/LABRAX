@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use LABRAX in research, media, data, or another published work, please cite it using this metadata."
+title: "LABRAX Embedded Control"
+type: software
+authors:
+  - alias: "bourinto"
+    website: "https://github.com/bourinto"
+repository-code: "https://github.com/bourinto/LABRAX"
+license: "BSD-3-Clause"
