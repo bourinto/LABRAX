@@ -1,4 +1,4 @@
-# Only python 2.7
+# Python 2.7 only
 import math
 import time
 
@@ -13,7 +13,7 @@ REGULATION_TIME = 68
 
 TARGET_DEPTH = 3.0
 
-# IRL parameters
+# Real-world parameters
 NOMINAL_SPEED = -0.5
 DEPTH_KP = 0.4
 DEPTH_KI = 0

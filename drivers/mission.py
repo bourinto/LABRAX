@@ -93,20 +93,22 @@ def _robot_offset_from_dvl(imu):
 
 class DeadReckoning(object):
     """
-    Simple dead-reckoning position estimator based on DVL velocities IMU
-    orientation and depth measurements.
+    Simple dead-reckoning position estimator based on DVL velocities, IMU
+    orientation, and depth measurements.
 
     The estimator maintains a 3D position estimate ``(x, y, z)`` in the world
     frame. Each new DVL sample is integrated once using its sensor timestamp
     and trapezoidal integration.
     
-    Then computed DVL position is shifted in space with transform matrix and attitude that gives true robot positon.    
+    The computed DVL position is then shifted using the attitude-dependent
+    transform to obtain the vehicle position.
     
     A new velocity estimate is computed from the latest IMU and DVL
     measurements and stored for use during the next DVL sample.
 
     Args:
-        vz_ignored (float, optional, True): value provided to _world_velocity_from_dvl() to ignore the DVL vz component and treat it as zero.
+        vz_ignored (bool, optional): Whether to ignore the DVL vertical velocity
+            component and treat it as zero. Defaults to True.
 
     Attributes:
         x (float): Estimated world-frame X position.

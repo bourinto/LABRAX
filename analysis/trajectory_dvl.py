@@ -1,36 +1,36 @@
 """
-Reconstruit et visualise la trajectoire d'un AUV à partir d'un journal CSV
-contenant les mesures DVL, la profondeur et l'attitude.
+Reconstruct and visualize an AUV trajectory from a CSV log containing DVL
+velocity, depth, and attitude measurements.
 
-Hypothèses :
-- Le repère monde est NED :
-    X = Nord
-    Y = Est
-    Z = profondeur (positive vers le bas)
-- Les vitesses DVL sont exprimées dans le repère du robot :
-    X = avant (surge)
-    Y = droite (sway)
-    Z = bas (heave)
-- L'attitude est fournie sous la forme :
-    yaw   = cap (heading)
-    pitch = assiette (positive nez vers le haut)
-    roll  = roulis
-- Les rotations sont appliquées selon la convention ZYX
-  (yaw → pitch → roll).
-- Les vitesses verticales DVL sont ignorées, la profondeur IMU
-  étant considérée comme la source de référence pour l'axe vertical.
-- Les échantillons dont la norme de vitesse DVL dépasse
-  MAX_DVL_SPEED sont rejetés.
+Assumptions:
+- The world frame uses the NED convention:
+    X = North
+    Y = East
+    Z = depth (positive downward)
+- DVL velocities are expressed in the vehicle body frame:
+    X = forward (surge)
+    Y = right (sway)
+    Z = down (heave)
+- Attitude is provided as:
+    yaw   = heading
+    pitch = attitude (positive nose up)
+    roll  = roll angle
+- Rotations use the ZYX convention (yaw → pitch → roll).
+- All three DVL velocity components are used during the transformation to the
+  NED frame and integration. The resulting vertical coordinate is then
+  replaced with the IMU depth measurement.
+- Samples whose DVL speed exceeds MAX_DVL_SPEED are rejected.
 
-Méthode :
-1. Chargement et filtrage du journal.
-2. Transformation des vitesses du repère corps vers le repère monde.
-3. Intégration trapézoïdale des vitesses pour estimer la position.
-4. Correction de la coordonnée Z à partir de la profondeur mesurée.
-5. Compensation du déport fixe entre le DVL/profondimètre et le centre robot.
-6. Affichage 3D de la trajectoire et de l'orientation du véhicule.
+Method:
+1. Load and filter the log.
+2. Transform velocities from the body frame to the world frame.
+3. Integrate velocities with the trapezoidal rule to estimate position.
+4. Replace the Z coordinate with the measured depth.
+5. Compensate for the fixed 0.98 m offset between the DVL/depth sensor and the
+   vehicle's center of rotation.
+6. Display the trajectory and vehicle orientation in three dimensions.
 
-La trajectoire reconstruite correspond à la trajectoire du centre robot.
+The reconstructed trajectory represents the vehicle's center of rotation.
 """
 import argparse
 from collections import namedtuple
@@ -42,7 +42,8 @@ from scipy.spatial.transform import Rotation
 
 
 MAX_DVL_SPEED = 3.0
-DVL_OFFSET_X_FROM_ROBOT = 1.08
+# Distance to the center of rotation, not the center of gravity.
+DVL_OFFSET_X_FROM_ROBOT = 0.98
 DVL_TO_ROBOT = np.array(
     [
         [1.0, 0.0, 0.0, -DVL_OFFSET_X_FROM_ROBOT],
@@ -52,10 +53,26 @@ DVL_TO_ROBOT = np.array(
     ]
 )
 AUV_DIAMETER = 0.14
-AUV_LENGTH = 1.70
+AUV_LENGTH = 1.76
 
 
 LogColumns = namedtuple("LogColumns", "timestamp depth dvl_velocity angles")
+
+
+def configure_latex_like_font():
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": [
+                "CMU Serif",
+                "Computer Modern Unicode",
+                "Computer Modern Roman",
+                "DejaVu Serif",
+            ],
+            "mathtext.fontset": "cm",
+            "axes.unicode_minus": False,
+        }
+    )
 
 
 def load_log_columns(csv_path):
@@ -84,7 +101,6 @@ def load_log_columns(csv_path):
 
 def world_velocities(columns):
     body_vel = columns.dvl_velocity.copy()
-    body_vel[:, 2] = 0.0
 
     return Rotation.from_euler("ZYX", columns.angles, degrees=True).apply(body_vel)
 
@@ -164,11 +180,13 @@ def set_equal_axes(ax, position, extra_points):
 
 
 def plot(columns, position, show_cylinder):
+    configure_latex_like_font()
+
     fig = plt.figure(figsize=(11, 8))
     ax = fig.add_subplot(111, projection="3d")
     ax.plot(position[:, 0], position[:, 1], position[:, 2], color="#555555", linewidth=2.0)
-    ax.scatter(*position[0], color="#2ca02c", s=60, label="Depart")
-    ax.scatter(*position[-1], color="#d62728", s=60, label="Arrivee")
+    ax.scatter(*position[0], color="#2ca02c", s=60, label="Start")
+    ax.scatter(*position[-1], color="#d62728", s=60, label="End")
 
     sample_count = min(12, len(columns.timestamp))
     sample_ids = np.linspace(0, len(columns.timestamp) - 1, sample_count, dtype=int)
@@ -191,7 +209,12 @@ def plot(columns, position, show_cylinder):
         ax.quiver(*origin, *(frame[:, 1] * scale), color="g", linewidth=1.2)
         ax.quiver(*origin, *(frame[:, 2] * scale), color="b", linewidth=1.2)
 
-    ax.set(xlabel="X monde [m]", ylabel="Y monde [m]", zlabel="Z monde [m]", title="Trajectoire estimée")
+    ax.set(
+        xlabel="World X [m]",
+        ylabel="World Y [m]",
+        zlabel="World Z [m]",
+        title="Estimated trajectory",
+    )
     set_equal_axes(ax, position, cylinder_ends)
     ax.invert_yaxis()
     ax.legend()

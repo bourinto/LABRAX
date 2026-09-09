@@ -1,4 +1,4 @@
-# Only python 2.7
+# Python 2.7 only
 import math
 import time
 
@@ -9,8 +9,8 @@ DIVE_TIME = 9.0
 PITCH_TARGET_DIVE = 70.0
 PITCH_REG_SCALE = 5.0
 
-TURN_TIME = 25.0
-YAW_TRESHOLD = 355
+TURN_TIME = 35
+YAW_THRESHOLD = 355
 
 
 if __name__ == '__main__':
@@ -22,7 +22,7 @@ if __name__ == '__main__':
         while security.check():
             imu = mission.imu
 
-            ut = -1.0
+            ut = -0.6
             uy = 0.0
             up = mission.pitch_reg(PITCH_TARGET_DIVE, PITCH_REG_SCALE, imu.pitch)
 
@@ -36,14 +36,14 @@ if __name__ == '__main__':
         while security.check(exit=True):
             imu = mission.imu
 
-            ut = -1.0
+            ut = -0.9 
             uy = -1.0
             up = mission.pitch_reg(0.0, PITCH_REG_SCALE, imu.pitch)
             mission.send(ut, uy, up, imu=imu)
 
             yaw = mission.yaw(imu)
             if yaw:
-                if prev_yaw and prev_yaw < YAW_TRESHOLD and yaw > YAW_TRESHOLD:
+                if prev_yaw and prev_yaw < YAW_THRESHOLD and yaw > YAW_THRESHOLD:
                     break
                 prev_yaw = yaw
 

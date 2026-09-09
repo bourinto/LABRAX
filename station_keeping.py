@@ -1,10 +1,10 @@
-# Only python 2.7
+# Python 2.7 only
 import math
 import time
 
 from drivers import DeadReckoning, Mission, Security, wrap_angle_deg
 
-CYCLE_NB = 3
+CYCLE_COUNT = 3
 
 LONG_DIVE_TIME = 11.0
 SHORT_DIVE_TIME = 8.0
@@ -29,9 +29,9 @@ if __name__ == '__main__':
 
         dr = DeadReckoning()
         dr.reset()
-        for cycle in range(CYCLE_NB):
+        for cycle in range(CYCLE_COUNT):
             dive_duration_s = LONG_DIVE_TIME if cycle == 0 else SHORT_DIVE_TIME
-            print('--- Cycle %d/%d (reverse dive %.1fs) ---' % (cycle + 1, CYCLE_NB, dive_duration_s))
+            print('--- Cycle %d/%d (reverse dive %.1fs) ---' % (cycle + 1, CYCLE_COUNT, dive_duration_s))
 
             security = Security()
             security.init(dive_duration_s)

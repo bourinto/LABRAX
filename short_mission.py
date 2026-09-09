@@ -1,4 +1,4 @@
-# Only python 2.7
+# Python 2.7 only
 import time
 
 from drivers import Mission

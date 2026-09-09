@@ -1,6 +1,7 @@
 # Logs
 log_*/
 *.csv
+plots/
 
 # Python virtual environments
 .venv/
@@ -33,6 +34,7 @@ dist/
 # Tool caches
 .agents/
 AGENTS.md
+xx_*
 .codex/
 .gitignore
 .mypy_cache/
